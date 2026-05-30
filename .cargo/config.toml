@@ -1,2 +1,10 @@
+# Cargo configuration
+
 [build]
 target-dir = 'dist/target'
+rustc-wrapper = "sccache"
+
+[env]
+# Default export directory for ts-rs (relative to each crate root)
+# Override with #[ts(export_to = "custom/")] per type if needed
+TS_RS_EXPORT_DIR = { value = "types", relative = false }
