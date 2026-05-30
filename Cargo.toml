@@ -2,7 +2,9 @@
 [workspace]
 resolver = '2'
 members = [
+	'apps/clis/pg-cli',
 	'apps/tuis/cluster_dashboard',
+	'libs/pg-gen',
 	'libs/resource_stats_types',
 ]
 
