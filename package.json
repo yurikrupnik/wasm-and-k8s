@@ -1,0 +1,14 @@
+{
+  "name": "@wasm-and-k8s/source",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {},
+  "private": true,
+  "dependencies": {
+    "@monodon/rust": "2.3.0"
+  },
+  "devDependencies": {
+    "@nx/workspace": "22.7.5",
+    "nx": "22.7.5"
+  }
+}
