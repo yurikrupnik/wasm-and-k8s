@@ -1,6 +1,22 @@
+
 [workspace]
-resolver = "2"
-members = []
+resolver = '2'
+members = [
+	'apps/clis/pg-cli',
+	'apps/tuis/cluster_dashboard',
+	'libs/pg-gen',
+	'libs/resource_stats_types',
+]
+
+[profile.dev]
+incremental = true
+codegen-units = 16 # Parallel compilation
+opt-level = 0 # No optimization for speed
 
 [profile.release]
+opt-level = 'z'
+codegen-units = 1
+strip = true
 lto = true
+panic = 'abort'
+incremental = false # Explicit: LTO doesn't benefit from incremental
