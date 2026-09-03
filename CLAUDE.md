@@ -22,3 +22,12 @@
 
 
 <!-- nx configuration end-->
+
+# Postgres manifest tooling
+
+- `pg-cli` (`apps/clis/pg-cli`) is the binary other repos call; `pg-gen` (`libs/pg-gen`) is the library it wraps. Use the binary from scripts/other repos, the library from Rust code.
+- `apps/examples/pg-cli-example` shows shelling out to the binary; `cargo run -p pg-gen --example configmap` shows the library API.
+- The two references below are generated (`just docs`); never edit them by hand — change the clap derive or `//!` docs and regenerate. CI runs `just docs-check`.
+
+@docs/pg-cli.md
+@libs/pg-gen/README.md

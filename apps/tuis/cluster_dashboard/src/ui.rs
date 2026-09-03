@@ -2,8 +2,8 @@
 
 use crate::{
     data::{
-        humanize_age, parse_quantity, AuthProviderType, ContainerRole, DashboardData,
-        NodeStatus, ProviderStatus, RightsizingRec, SecurityIssue, Severity,
+        humanize_age, parse_quantity, AuthProviderType, ContainerRole, DashboardData, NodeStatus,
+        ProviderStatus, RightsizingRec, SecurityIssue, Severity,
     },
     Dashboard, View,
 };
@@ -12,8 +12,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::Line,
     widgets::{
-        Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row,
-        Table, TableState, Tabs, Wrap,
+        Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Table, TableState,
+        Tabs, Wrap,
     },
     Frame,
 };
@@ -49,9 +49,7 @@ fn render_header(frame: &mut Frame, area: Rect, dashboard: &Dashboard) {
         View::Rightsizing,
     ]
     .iter()
-    .map(|v| {
-        Line::from(format!(" {} {} ", v.key(), v.title()))
-    })
+    .map(|v| Line::from(format!(" {} {} ", v.key(), v.title())))
     .collect();
 
     let selected = match dashboard.current_view {
@@ -65,7 +63,11 @@ fn render_header(frame: &mut Frame, area: Rect, dashboard: &Dashboard) {
     };
 
     let tabs = Tabs::new(titles)
-        .block(Block::default().borders(Borders::ALL).title(" Cluster Dashboard "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Cluster Dashboard "),
+        )
         .select(selected)
         .style(Style::default().fg(Color::White))
         .highlight_style(
@@ -118,14 +120,21 @@ fn render_overview(frame: &mut Frame, area: Rect, data: &DashboardData) {
         format!("Provider: {}", data.cluster_info.provider),
         format!("Nodes: {}", data.cluster_info.node_count),
         format!("Namespaces: {}", data.cluster_info.namespace_count),
-        format!("Pods: {}/{}", data.cluster_info.running_pods, data.cluster_info.pod_count),
+        format!(
+            "Pods: {}/{}",
+            data.cluster_info.running_pods, data.cluster_info.pod_count
+        ),
     ];
     let cluster_block = Paragraph::new(cluster_info.join("\n"))
         .block(Block::default().borders(Borders::ALL).title(" Cluster "));
     frame.render_widget(cluster_block, left_chunks[0]);
 
     // Node Summary
-    let ready_nodes = data.nodes.iter().filter(|n| n.status == NodeStatus::Ready).count();
+    let ready_nodes = data
+        .nodes
+        .iter()
+        .filter(|n| n.status == NodeStatus::Ready)
+        .count();
     let node_info = vec![
         format!("Total: {}", data.nodes.len()),
         format!("Ready: {}", ready_nodes),
@@ -137,16 +146,18 @@ fn render_overview(frame: &mut Frame, area: Rect, data: &DashboardData) {
 
     // Security Score
     let security_gauge = Gauge::default()
-        .block(Block::default().borders(Borders::ALL).title(" Security Score "))
-        .gauge_style(
-            Style::default().fg(if data.security.score >= 80 {
-                Color::Green
-            } else if data.security.score >= 60 {
-                Color::Yellow
-            } else {
-                Color::Red
-            }),
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Security Score "),
         )
+        .gauge_style(Style::default().fg(if data.security.score >= 80 {
+            Color::Green
+        } else if data.security.score >= 60 {
+            Color::Yellow
+        } else {
+            Color::Red
+        }))
         .percent(data.security.score as u16)
         .label(format!("{}%", data.security.score));
     frame.render_widget(security_gauge, right_chunks[0]);
@@ -155,7 +166,10 @@ fn render_overview(frame: &mut Frame, area: Rect, data: &DashboardData) {
     let finops_info = vec![
         format!("Monthly Cost: ${:.2}", data.finops.total_monthly_cost),
         format!("Hourly Cost: ${:.2}", data.finops.total_hourly_cost),
-        format!("Savings Opportunities: ${:.2}", data.finops.savings_opportunities),
+        format!(
+            "Savings Opportunities: ${:.2}",
+            data.finops.savings_opportunities
+        ),
     ];
     let finops_block = Paragraph::new(finops_info.join("\n"))
         .block(Block::default().borders(Borders::ALL).title(" FinOps "));
@@ -179,8 +193,11 @@ fn render_overview(frame: &mut Frame, area: Rect, data: &DashboardData) {
         format!("HPA conflicts: {}", hpa_conflict),
         format!("Low confidence: {}", low_conf),
     ];
-    let rs_block = Paragraph::new(rs_info.join("\n"))
-        .block(Block::default().borders(Borders::ALL).title(" Rightsizing "));
+    let rs_block = Paragraph::new(rs_info.join("\n")).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Rightsizing "),
+    );
     frame.render_widget(rs_block, right_chunks[2]);
 }
 
@@ -255,7 +272,7 @@ fn render_security(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: &
             all write to.\n\n\
             If you expected findings here:\n  \
             - confirm a policy engine is installed (kubectl get polr -A)\n  \
-            - check it has actually produced results (.results[])"
+            - check it has actually produced results (.results[])",
         )
         .block(Block::default().borders(Borders::ALL).title(" Security "))
         .wrap(Wrap { trim: false });
@@ -386,7 +403,11 @@ fn security_footer<'a>(data: &'a DashboardData) -> Paragraph<'a> {
         high,
         med,
         low,
-        if sources.is_empty() { "(none)".to_string() } else { sources },
+        if sources.is_empty() {
+            "(none)".to_string()
+        } else {
+            sources
+        },
     );
     Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" Status "))
 }
@@ -439,7 +460,11 @@ fn render_finops(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: &Da
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(" Cost by Namespace "));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Cost by Namespace "),
+    );
 
     let mut state = list_state(len, dashboard.selected_index);
     frame.render_stateful_widget(table, chunks[0], &mut state);
@@ -453,7 +478,10 @@ fn render_finops(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: &Da
     let summary = vec![
         format!("Total Monthly: ${:.2}", data.finops.total_monthly_cost),
         format!("Projected: ${:.2}", data.finops.projected_monthly_cost),
-        format!("Savings Available: ${:.2}", data.finops.savings_opportunities),
+        format!(
+            "Savings Available: ${:.2}",
+            data.finops.savings_opportunities
+        ),
     ];
     let summary_block = Paragraph::new(summary.join("\n"))
         .block(Block::default().borders(Borders::ALL).title(" Summary "));
@@ -471,8 +499,11 @@ fn render_finops(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: &Da
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Recommendations "));
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Recommendations "),
+    );
     frame.render_widget(list, right_chunks[1]);
 }
 
@@ -485,9 +516,13 @@ fn render_rightsizing(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data
             To enable:\n  \
             1. Install Goldilocks (Fairwinds chart)\n  \
             2. Label namespaces:  goldilocks.fairwinds.com/enabled=\"true\"\n  \
-            3. Wait a few minutes for the VPA recommender to collect samples"
+            3. Wait a few minutes for the VPA recommender to collect samples",
         )
-        .block(Block::default().borders(Borders::ALL).title(" Rightsizing (Goldilocks / VPA) "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Rightsizing (Goldilocks / VPA) "),
+        )
         .wrap(Wrap { trim: false });
         frame.render_widget(msg, area);
         return;
@@ -568,12 +603,8 @@ fn rightsizing_row(r: &RightsizingRec, base: Style) -> Row<'_> {
         s
     };
     let container_style = match r.container_role {
-        ContainerRole::Sidecar | ContainerRole::Init => {
-            Style::default().fg(Color::DarkGray)
-        }
-        ContainerRole::App if !r.hpa_conflicts.is_empty() => {
-            Style::default().fg(Color::Yellow)
-        }
+        ContainerRole::Sidecar | ContainerRole::Init => Style::default().fg(Color::DarkGray),
+        ContainerRole::App if !r.hpa_conflicts.is_empty() => Style::default().fg(Color::Yellow),
         ContainerRole::App => Style::default(),
     };
 
@@ -581,8 +612,18 @@ fn rightsizing_row(r: &RightsizingRec, base: Style) -> Row<'_> {
 
     let cpu_req = delta_cell(&r.current_cpu_request, &r.burstable_cpu_request, r, "cpu");
     let cpu_lim = delta_cell(&r.current_cpu_limit, &r.burstable_cpu_limit, r, "cpu");
-    let mem_req = delta_cell(&r.current_memory_request, &r.burstable_memory_request, r, "memory");
-    let mem_lim = delta_cell(&r.current_memory_limit, &r.burstable_memory_limit, r, "memory");
+    let mem_req = delta_cell(
+        &r.current_memory_request,
+        &r.burstable_memory_request,
+        r,
+        "memory",
+    );
+    let mem_lim = delta_cell(
+        &r.current_memory_limit,
+        &r.burstable_memory_limit,
+        r,
+        "memory",
+    );
 
     Row::new(vec![
         Cell::from(workload_cell),
@@ -610,9 +651,18 @@ fn confidence_label(r: &RightsizingRec) -> (String, Style) {
         );
     }
     match age {
-        Some(s) if s < 3600 => (format!("○ {}", humanize_age(s)), Style::default().fg(Color::Yellow)),
-        Some(s) if s < 86400 * 7 => (format!("● {}", humanize_age(s)), Style::default().fg(Color::Green)),
-        Some(s) => (format!("● {}", humanize_age(s)), Style::default().fg(Color::Green)),
+        Some(s) if s < 3600 => (
+            format!("○ {}", humanize_age(s)),
+            Style::default().fg(Color::Yellow),
+        ),
+        Some(s) if s < 86400 * 7 => (
+            format!("● {}", humanize_age(s)),
+            Style::default().fg(Color::Green),
+        ),
+        Some(s) => (
+            format!("● {}", humanize_age(s)),
+            Style::default().fg(Color::Green),
+        ),
         None => ("○ ?".to_string(), Style::default().fg(Color::Gray)),
     }
 }
@@ -680,18 +730,16 @@ fn rightsizing_footer<'a>(data: &'a DashboardData) -> Paragraph<'a> {
         .iter()
         .filter(|r| !r.hpa_conflicts.is_empty())
         .count();
-    let low_conf = data
-        .rightsizing
-        .iter()
-        .filter(|r| r.low_confidence)
-        .count();
+    let low_conf = data.rightsizing.iter().filter(|r| r.low_confidence).count();
     let newest_age = data
         .rightsizing
         .iter()
         .filter_map(|r| r.last_update_age_secs)
         .min();
 
-    let last = newest_age.map(humanize_age).unwrap_or_else(|| "?".to_string());
+    let last = newest_age
+        .map(humanize_age)
+        .unwrap_or_else(|| "?".to_string());
     let summary = format!(
         "{} workloads · {} containers ({} sidecars · {} init) · {} ns · {} HPA-conflict · {} low-conf · last VPA update: {}",
         workloads.len(),
@@ -752,8 +800,11 @@ fn render_security_detail(
     data: &DashboardData,
 ) {
     if dashboard.selected_index >= data.security.issues.len() {
-        let message = Paragraph::new("No finding selected. Press Esc to go back.")
-            .block(Block::default().borders(Borders::ALL).title(" Finding Detail "));
+        let message = Paragraph::new("No finding selected. Press Esc to go back.").block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Finding Detail "),
+        );
         frame.render_widget(message, area);
         return;
     }
@@ -780,11 +831,14 @@ fn render_security_detail(
     lines.push("Esc — back to findings list".to_string());
 
     let paragraph = Paragraph::new(lines.join("\n"))
-        .block(Block::default().borders(Borders::ALL).title(" Finding Detail "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Finding Detail "),
+        )
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
 }
-
 
 fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: &DashboardData) {
     let has_configs = !data.provider_configs.is_empty();
@@ -798,9 +852,13 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
             • Crossplane Provider packages\n\
             • External Secrets SecretStores & ClusterSecretStores\n\
             • ServiceAccounts with IRSA/Workload Identity\n\n\
-            Install Crossplane or External Secrets Operator to see providers here."
+            Install Crossplane or External Secrets Operator to see providers here.",
         )
-        .block(Block::default().borders(Borders::ALL).title(" Providers & Auth "));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Providers & Auth "),
+        );
         frame.render_widget(message, area);
         return;
     }
@@ -809,25 +867,42 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),   // Summary
+            Constraint::Length(5),      // Summary
             Constraint::Percentage(45), // Provider Configs
             Constraint::Percentage(45), // Auth Providers
         ])
         .split(area);
 
     // Summary section
-    let config_healthy = data.provider_configs.iter().filter(|p| p.status == ProviderStatus::Healthy).count();
-    let config_error = data.provider_configs.iter().filter(|p| p.status == ProviderStatus::Error).count();
-    let auth_healthy = data.auth_providers.iter().filter(|p| p.status == ProviderStatus::Healthy).count();
-    let auth_error = data.auth_providers.iter().filter(|p| p.status == ProviderStatus::Error).count();
+    let config_healthy = data
+        .provider_configs
+        .iter()
+        .filter(|p| p.status == ProviderStatus::Healthy)
+        .count();
+    let config_error = data
+        .provider_configs
+        .iter()
+        .filter(|p| p.status == ProviderStatus::Error)
+        .count();
+    let auth_healthy = data
+        .auth_providers
+        .iter()
+        .filter(|p| p.status == ProviderStatus::Healthy)
+        .count();
+    let auth_error = data
+        .auth_providers
+        .iter()
+        .filter(|p| p.status == ProviderStatus::Error)
+        .count();
 
-    let summary = format!(
+    let summary =
+        format!(
         "Provider Configs: {} ({}✓ {}✗) | Auth Providers: {} ({}✓ {}✗) | [Tab to switch sections]",
         data.provider_configs.len(), config_healthy, config_error,
         data.auth_providers.len(), auth_healthy, auth_error,
     );
-    let summary_block = Paragraph::new(summary)
-        .block(Block::default().borders(Borders::ALL).title(" Summary "));
+    let summary_block =
+        Paragraph::new(summary).block(Block::default().borders(Borders::ALL).title(" Summary "));
     frame.render_widget(summary_block, chunks[0]);
 
     // Provider Configs table
@@ -877,7 +952,12 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
                 Cell::from(provider.provider_type.to_string()),
                 Cell::from(status_text).style(status_style),
                 Cell::from(truncate_string(&provider.credentials_source, 15)),
-                Cell::from(provider.secret_ref.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(
+                    provider
+                        .secret_ref
+                        .clone()
+                        .unwrap_or_else(|| "-".to_string()),
+                ),
                 Cell::from(provider.associated_resources.to_string()),
             ])
             .style(style)
@@ -896,7 +976,11 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
         ],
     )
     .header(config_header)
-    .block(Block::default().borders(Borders::ALL).title(" Crossplane ProviderConfigs "));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Crossplane ProviderConfigs "),
+    );
 
     let mut config_state = TableState::default();
     if cfg_len > 0 && selected < cfg_len {
@@ -944,7 +1028,9 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
 
             let type_color = match auth.auth_type {
                 AuthProviderType::CrossplaneProvider => Color::Cyan,
-                AuthProviderType::SecretStore | AuthProviderType::ClusterSecretStore => Color::Magenta,
+                AuthProviderType::SecretStore | AuthProviderType::ClusterSecretStore => {
+                    Color::Magenta
+                }
                 AuthProviderType::AwsIrsa => Color::Yellow,
                 AuthProviderType::GcpWorkloadIdentity => Color::Blue,
                 AuthProviderType::AzureWorkloadIdentity => Color::LightBlue,
@@ -957,8 +1043,16 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
                 Cell::from(auth.auth_type.to_string()).style(Style::default().fg(type_color)),
                 Cell::from(status_text).style(status_style),
                 Cell::from(truncate_string(&auth.backend, 25)),
-                Cell::from(auth.namespace.clone().unwrap_or_else(|| "(cluster)".to_string())),
-                Cell::from(auth.service_account.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(
+                    auth.namespace
+                        .clone()
+                        .unwrap_or_else(|| "(cluster)".to_string()),
+                ),
+                Cell::from(
+                    auth.service_account
+                        .clone()
+                        .unwrap_or_else(|| "-".to_string()),
+                ),
             ])
             .style(style)
         })
@@ -976,7 +1070,11 @@ fn render_providers(frame: &mut Frame, area: Rect, dashboard: &Dashboard, data: 
         ],
     )
     .header(auth_header)
-    .block(Block::default().borders(Borders::ALL).title(" Auth Providers (Crossplane Pkgs, SecretStores, Workload Identity) "));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Auth Providers (Crossplane Pkgs, SecretStores, Workload Identity) "),
+    );
 
     let mut auth_state = TableState::default();
     if auth_len > 0 && selected >= cfg_len {
@@ -994,8 +1092,11 @@ fn render_provider_detail(
     let total_items = data.provider_configs.len() + data.auth_providers.len();
 
     if dashboard.selected_index >= total_items {
-        let message = Paragraph::new("No provider selected. Press Esc to go back.")
-            .block(Block::default().borders(Borders::ALL).title(" Provider Detail "));
+        let message = Paragraph::new("No provider selected. Press Esc to go back.").block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Provider Detail "),
+        );
         frame.render_widget(message, area);
         return;
     }
@@ -1023,19 +1124,32 @@ fn render_provider_detail(
             format!("Provider: {}", provider.provider_type),
             format!("Status: {}", status_indicator),
             format!("Credentials Source: {}", provider.credentials_source),
-            format!("Secret Reference: {}", provider.secret_ref.as_deref().unwrap_or("N/A")),
+            format!(
+                "Secret Reference: {}",
+                provider.secret_ref.as_deref().unwrap_or("N/A")
+            ),
             format!("Associated Resources: {}", provider.associated_resources),
-            format!("Last Sync: {}", provider.last_sync.as_deref().unwrap_or("N/A")),
+            format!(
+                "Last Sync: {}",
+                provider.last_sync.as_deref().unwrap_or("N/A")
+            ),
             String::new(),
             format!("Message: {}", provider.message.as_deref().unwrap_or("None")),
         ];
 
         let info_block = Paragraph::new(details.join("\n"))
-            .block(Block::default().borders(Borders::ALL).title(" ProviderConfig Detail "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" ProviderConfig Detail "),
+            )
             .wrap(Wrap { trim: false });
         frame.render_widget(info_block, chunks[0]);
 
-        let cmd1 = format!("  kubectl describe providerconfig {} -o yaml", provider.name);
+        let cmd1 = format!(
+            "  kubectl describe providerconfig {} -o yaml",
+            provider.name
+        );
         let cmd2 = format!("  kubectl get providerconfig {} -o yaml", provider.name);
         let actions = vec![
             "kubectl Commands:".to_string(),
@@ -1069,22 +1183,38 @@ fn render_provider_detail(
             format!("Type: {}", auth.auth_type),
             format!("Status: {}", status_indicator),
             format!("Backend: {}", auth.backend),
-            format!("Namespace: {}", auth.namespace.as_deref().unwrap_or("(cluster-scoped)")),
-            format!("Secret Reference: {}", auth.secret_ref.as_deref().unwrap_or("N/A")),
-            format!("Service Account: {}", auth.service_account.as_deref().unwrap_or("N/A")),
+            format!(
+                "Namespace: {}",
+                auth.namespace.as_deref().unwrap_or("(cluster-scoped)")
+            ),
+            format!(
+                "Secret Reference: {}",
+                auth.secret_ref.as_deref().unwrap_or("N/A")
+            ),
+            format!(
+                "Service Account: {}",
+                auth.service_account.as_deref().unwrap_or("N/A")
+            ),
             format!("Last Sync: {}", auth.last_sync.as_deref().unwrap_or("N/A")),
             String::new(),
             format!("Message: {}", auth.message.as_deref().unwrap_or("None")),
         ];
 
         let info_block = Paragraph::new(details.join("\n"))
-            .block(Block::default().borders(Borders::ALL).title(" Auth Provider Detail "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Auth Provider Detail "),
+            )
             .wrap(Wrap { trim: false });
         frame.render_widget(info_block, chunks[0]);
 
         let kubectl_cmd = match auth.auth_type {
             AuthProviderType::CrossplaneProvider => {
-                format!("  kubectl describe provider.pkg.crossplane.io {}", auth.name)
+                format!(
+                    "  kubectl describe provider.pkg.crossplane.io {}",
+                    auth.name
+                )
             }
             AuthProviderType::ClusterSecretStore => {
                 format!("  kubectl describe clustersecretstore {}", auth.name)
@@ -1093,7 +1223,9 @@ fn render_provider_detail(
                 let ns = auth.namespace.as_deref().unwrap_or("default");
                 format!("  kubectl describe secretstore {} -n {}", auth.name, ns)
             }
-            AuthProviderType::AwsIrsa | AuthProviderType::GcpWorkloadIdentity | AuthProviderType::AzureWorkloadIdentity => {
+            AuthProviderType::AwsIrsa
+            | AuthProviderType::GcpWorkloadIdentity
+            | AuthProviderType::AzureWorkloadIdentity => {
                 let ns = auth.namespace.as_deref().unwrap_or("default");
                 format!("  kubectl describe serviceaccount {} -n {}", auth.name, ns)
             }
@@ -1140,12 +1272,11 @@ fn render_search_popup(frame: &mut Frame, dashboard: &Dashboard) {
     let area = centered_rect(60, 3, frame.area());
     frame.render_widget(Clear, area);
 
-    let search = Paragraph::new(format!("Search: {}_", dashboard.search_query))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Search (Esc to cancel) "),
-        );
+    let search = Paragraph::new(format!("Search: {}_", dashboard.search_query)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Search (Esc to cancel) "),
+    );
     frame.render_widget(search, area);
 }
 

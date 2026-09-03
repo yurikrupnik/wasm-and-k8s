@@ -5,7 +5,10 @@ use color_eyre::eyre::Result;
 use pg_gen::ConfigMapBuilder;
 
 #[derive(Parser)]
-#[command(name = "pg-cli", about = "Playground CLI — config & manifest generation")]
+#[command(
+    name = "pg-cli",
+    about = "Playground CLI — config & manifest generation"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -16,6 +19,10 @@ enum Commands {
     /// Generate Kubernetes ConfigMaps from SQL files
     #[command(subcommand)]
     Configmap(ConfigmapCommands),
+
+    /// Print this CLI's reference as Markdown (used by `just docs` to build docs/pg-cli.md)
+    #[command(hide = true)]
+    Docs,
 }
 
 #[derive(Subcommand)]
@@ -60,6 +67,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Docs => print!("{}", clap_markdown::help_markdown::<Cli>()),
         Commands::Configmap(cmd) => match cmd {
             ConfigmapCommands::Schema {
                 schema,

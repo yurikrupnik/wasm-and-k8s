@@ -1,0 +1,44 @@
+{
+  "name": "pg-cli-example",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/examples/pg-cli-example/src",
+  "implicitDependencies": ["pg-cli"],
+  "targets": {
+    "build": {
+      "cache": true,
+      "executor": "@monodon/rust:build",
+      "outputs": ["{options.target-dir}"],
+      "options": {
+        "target-dir": "dist/target/pg-cli-example"
+      },
+      "configurations": {
+        "production": {
+          "release": true
+        }
+      }
+    },
+    "lint": {
+      "cache": true,
+      "executor": "@monodon/rust:lint",
+      "outputs": ["{options.target-dir}"],
+      "options": {
+        "target-dir": "dist/target/pg-cli-example"
+      }
+    },
+    "run": {
+      "executor": "@monodon/rust:run",
+      "dependsOn": ["pg-cli:build"],
+      "outputs": ["{options.target-dir}"],
+      "options": {
+        "target-dir": "dist/target/pg-cli-example"
+      },
+      "configurations": {
+        "production": {
+          "release": true
+        }
+      }
+    }
+  },
+  "tags": ["example"]
+}

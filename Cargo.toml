@@ -3,6 +3,7 @@
 resolver = '2'
 members = [
 	'apps/clis/pg-cli',
+	'apps/examples/pg-cli-example',
 	'apps/tuis/cluster_dashboard',
 	'libs/pg-gen',
 	'libs/resource_stats_types',

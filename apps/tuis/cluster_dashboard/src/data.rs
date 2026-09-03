@@ -6,6 +6,8 @@ use k8s_openapi::api::core::v1::{Namespace, Node, Pod};
 use kube::api::GroupVersionKind;
 use kube::discovery::Discovery;
 use kube::{Api, Client};
+
+use crate::kube_client;
 use std::collections::{HashMap, HashSet};
 
 /// All dashboard data
@@ -25,7 +27,7 @@ pub struct DashboardData {
 impl DashboardData {
     /// Load all dashboard data from the cluster
     pub async fn load() -> anyhow::Result<Self> {
-        let client = Client::try_default().await?;
+        let client = kube_client::client().await?;
 
         // One discovery scan up front so every dynamic-CRD lookup can skip
         // missing GVKs instead of triggering 404s through the kube client.
@@ -132,7 +134,10 @@ impl DashboardData {
             let conditions = status.and_then(|s| s.conditions.as_ref());
 
             let ready = conditions
-                .map(|c| c.iter().any(|cond| cond.type_ == "Ready" && cond.status == "True"))
+                .map(|c| {
+                    c.iter()
+                        .any(|cond| cond.type_ == "Ready" && cond.status == "True")
+                })
                 .unwrap_or(false);
 
             let allocatable = status.and_then(|s| s.allocatable.as_ref());
@@ -162,7 +167,11 @@ impl DashboardData {
             let zone = labels
                 .get("topology.kubernetes.io/zone")
                 .cloned()
-                .or_else(|| labels.get("failure-domain.beta.kubernetes.io/zone").cloned())
+                .or_else(|| {
+                    labels
+                        .get("failure-domain.beta.kubernetes.io/zone")
+                        .cloned()
+                })
                 .unwrap_or_else(|| "Unknown".to_string());
 
             result.push(NodeInfo {
@@ -252,12 +261,8 @@ impl DashboardData {
         let mut issues: Vec<SecurityIssue> = Vec::new();
 
         // Namespaced PolicyReports — one per workload in most installs.
-        if let Some(ar) = Self::resolve_gvk(
-            discovery,
-            "wgpolicyk8s.io",
-            "v1alpha2",
-            "PolicyReport",
-        ) {
+        if let Some(ar) = Self::resolve_gvk(discovery, "wgpolicyk8s.io", "v1alpha2", "PolicyReport")
+        {
             let api: Api<DynamicObject> = Api::all_with(client.clone(), &ar);
             if let Ok(list) = api.list(&Default::default()).await {
                 for report in list.items {
@@ -461,10 +466,7 @@ impl DashboardData {
                 if let Some(pod_spec) = pod_spec {
                     for c in pod_spec.containers {
                         let cur = CurrentResources::from_container_resources(c.resources.as_ref());
-                        current.insert(
-                            (ns.clone(), kind.clone(), name.clone(), c.name),
-                            cur,
-                        );
+                        current.insert((ns.clone(), kind.clone(), name.clone(), c.name), cur);
                     }
                     for c in pod_spec.init_containers.unwrap_or_default() {
                         init_containers.insert((
@@ -488,7 +490,7 @@ impl DashboardData {
         if let Ok(hpas) = hpa_api.list(&Default::default()).await {
             for hpa in hpas.items {
                 let ns = hpa.metadata.namespace.unwrap_or_default();
-                let Some(spec) = hpa.spec else { continue };
+                let spec = hpa.spec;
                 let target = spec.scale_target_ref;
                 let mut resources: Vec<String> = Vec::new();
                 if let Some(metrics) = spec.metrics {
@@ -535,14 +537,11 @@ impl DashboardData {
                     match (typ, status) {
                         ("LowConfidence", "True") => low_confidence = true,
                         ("RecommendationProvided", "True") => {
-                            if let Some(t) =
-                                c.get("lastTransitionTime").and_then(|v| v.as_str())
-                            {
+                            if let Some(t) = c.get("lastTransitionTime").and_then(|v| v.as_str()) {
                                 if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(t) {
-                                    let secs = (now - ts.with_timezone(&chrono::Utc))
-                                        .num_seconds()
-                                        .max(0)
-                                        as u64;
+                                    let secs =
+                                        (now - ts.with_timezone(&chrono::Utc)).num_seconds().max(0)
+                                            as u64;
                                     last_update_age_secs = Some(secs);
                                 }
                             }
@@ -579,7 +578,12 @@ impl DashboardData {
                         .unwrap_or_else(|| "-".to_string())
                 };
 
-                let key = (ns.clone(), workload_kind.clone(), workload.clone(), container.clone());
+                let key = (
+                    ns.clone(),
+                    workload_kind.clone(),
+                    workload.clone(),
+                    container.clone(),
+                );
                 let cur = current.get(&key).cloned().unwrap_or_default();
                 let container_role = if init_containers.contains(&key) {
                     ContainerRole::Init
@@ -613,8 +617,16 @@ impl DashboardData {
         }
 
         out.sort_by(|a, b| {
-            (a.namespace.as_str(), a.workload.as_str(), a.container.as_str())
-                .cmp(&(b.namespace.as_str(), b.workload.as_str(), b.container.as_str()))
+            (
+                a.namespace.as_str(),
+                a.workload.as_str(),
+                a.container.as_str(),
+            )
+                .cmp(&(
+                    b.namespace.as_str(),
+                    b.workload.as_str(),
+                    b.container.as_str(),
+                ))
         });
         out
     }
@@ -629,7 +641,9 @@ impl DashboardData {
         kind: &str,
     ) -> Option<kube::api::ApiResource> {
         let gvk = GroupVersionKind::gvk(group, version, kind);
-        discovery.resolve_gvk(&gvk).map(|(api_resource, _)| api_resource)
+        discovery
+            .resolve_gvk(&gvk)
+            .map(|(api_resource, _)| api_resource)
     }
 
     async fn load_provider_configs(
@@ -642,16 +656,61 @@ impl DashboardData {
 
         // Define the provider config types to look for
         let provider_types = vec![
-            ("aws.upbound.io", "v1beta1", "ProviderConfig", ProviderType::AWS),
-            ("gcp.upbound.io", "v1beta1", "ProviderConfig", ProviderType::GCP),
-            ("azure.upbound.io", "v1beta1", "ProviderConfig", ProviderType::Azure),
-            ("kubernetes.crossplane.io", "v1alpha1", "ProviderConfig", ProviderType::Kubernetes),
-            ("helm.crossplane.io", "v1beta1", "ProviderConfig", ProviderType::Helm),
-            ("tf.upbound.io", "v1beta1", "ProviderConfig", ProviderType::Terraform),
+            (
+                "aws.upbound.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::AWS,
+            ),
+            (
+                "gcp.upbound.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::GCP,
+            ),
+            (
+                "azure.upbound.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::Azure,
+            ),
+            (
+                "kubernetes.crossplane.io",
+                "v1alpha1",
+                "ProviderConfig",
+                ProviderType::Kubernetes,
+            ),
+            (
+                "helm.crossplane.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::Helm,
+            ),
+            (
+                "tf.upbound.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::Terraform,
+            ),
             // Legacy Crossplane provider APIs
-            ("aws.crossplane.io", "v1beta1", "ProviderConfig", ProviderType::AWS),
-            ("gcp.crossplane.io", "v1beta1", "ProviderConfig", ProviderType::GCP),
-            ("azure.crossplane.io", "v1beta1", "ProviderConfig", ProviderType::Azure),
+            (
+                "aws.crossplane.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::AWS,
+            ),
+            (
+                "gcp.crossplane.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::GCP,
+            ),
+            (
+                "azure.crossplane.io",
+                "v1beta1",
+                "ProviderConfig",
+                ProviderType::Azure,
+            ),
         ];
 
         for (group, version, kind, provider_type) in provider_types {
@@ -700,7 +759,9 @@ impl DashboardData {
         Ok(provider_configs)
     }
 
-    fn extract_provider_status(obj: &kube::api::DynamicObject) -> (ProviderStatus, Option<String>, Option<String>) {
+    fn extract_provider_status(
+        obj: &kube::api::DynamicObject,
+    ) -> (ProviderStatus, Option<String>, Option<String>) {
         let status = obj.data.get("status");
 
         if let Some(status) = status {
@@ -713,12 +774,21 @@ impl DashboardData {
 
                 for cond in conditions {
                     let cond_type = cond.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                    let cond_status = cond.get("status").and_then(|s| s.as_str()).unwrap_or("False");
+                    let cond_status = cond
+                        .get("status")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("False");
 
                     if cond_type == "Ready" || cond_type == "Healthy" {
                         is_ready = cond_status == "True";
-                        message = cond.get("message").and_then(|m| m.as_str()).map(|s| s.to_string());
-                        last_sync = cond.get("lastTransitionTime").and_then(|t| t.as_str()).map(|s| s.to_string());
+                        message = cond
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .map(|s| s.to_string());
+                        last_sync = cond
+                            .get("lastTransitionTime")
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.to_string());
                     }
                 }
 
@@ -763,8 +833,14 @@ impl DashboardData {
         let secret_ref = creds.get("secretRef")?;
 
         let name = secret_ref.get("name").and_then(|n| n.as_str())?;
-        let namespace = secret_ref.get("namespace").and_then(|n| n.as_str()).unwrap_or("default");
-        let key = secret_ref.get("key").and_then(|k| k.as_str()).unwrap_or("credentials");
+        let namespace = secret_ref
+            .get("namespace")
+            .and_then(|n| n.as_str())
+            .unwrap_or("default");
+        let key = secret_ref
+            .get("key")
+            .and_then(|k| k.as_str())
+            .unwrap_or("credentials");
 
         Some(format!("{}/{}:{}", namespace, name, key))
     }
@@ -786,19 +862,18 @@ impl DashboardData {
         let api: Api<DynamicObject> = Api::all_with(client.clone(), &api_resource);
 
         match api.list(&Default::default()).await {
-            Ok(list) => {
-                list.items
-                    .iter()
-                    .filter(|item| {
-                        item.data
-                            .get("providerConfigRef")
-                            .and_then(|r| r.get("name"))
-                            .and_then(|n| n.as_str())
-                            .map(|n| n == provider_name)
-                            .unwrap_or(false)
-                    })
-                    .count()
-            }
+            Ok(list) => list
+                .items
+                .iter()
+                .filter(|item| {
+                    item.data
+                        .get("providerConfigRef")
+                        .and_then(|r| r.get("name"))
+                        .and_then(|n| n.as_str())
+                        .map(|n| n == provider_name)
+                        .unwrap_or(false)
+                })
+                .count(),
             Err(_) => 0,
         }
     }
@@ -833,7 +908,8 @@ impl DashboardData {
         let mut providers = Vec::new();
 
         // Crossplane Provider CRD (pkg.crossplane.io/v1/Provider)
-        let Some(api_resource) = Self::resolve_gvk(discovery, "pkg.crossplane.io", "v1", "Provider")
+        let Some(api_resource) =
+            Self::resolve_gvk(discovery, "pkg.crossplane.io", "v1", "Provider")
         else {
             return providers;
         };
@@ -844,7 +920,8 @@ impl DashboardData {
                 let name = item.metadata.name.clone().unwrap_or_default();
 
                 // Extract package info
-                let package = item.data
+                let package = item
+                    .data
                     .get("spec")
                     .and_then(|s| s.get("package"))
                     .and_then(|p| p.as_str())
@@ -855,7 +932,8 @@ impl DashboardData {
                 let (status, message, last_sync) = Self::extract_provider_status(&item);
 
                 // Check for installed/healthy condition
-                let installed = item.data
+                let installed = item
+                    .data
                     .get("status")
                     .and_then(|s| s.get("conditions"))
                     .and_then(|c| c.as_array())
@@ -914,7 +992,8 @@ impl DashboardData {
                 let name = item.metadata.name.clone().unwrap_or_default();
 
                 // Determine backend type from spec.provider
-                let (backend, secret_ref, service_account) = Self::extract_secret_store_backend(&item);
+                let (backend, secret_ref, service_account) =
+                    Self::extract_secret_store_backend(&item);
 
                 // Extract status
                 let (status, message, last_sync) = Self::extract_secret_store_status(&item);
@@ -936,10 +1015,7 @@ impl DashboardData {
         stores
     }
 
-    async fn load_secret_stores(
-        client: &Client,
-        discovery: &Discovery,
-    ) -> Vec<AuthProviderInfo> {
+    async fn load_secret_stores(client: &Client, discovery: &Discovery) -> Vec<AuthProviderInfo> {
         use kube::api::DynamicObject;
 
         let mut stores = Vec::new();
@@ -958,7 +1034,8 @@ impl DashboardData {
                 let namespace = item.metadata.namespace.clone();
 
                 // Determine backend type from spec.provider
-                let (backend, secret_ref, service_account) = Self::extract_secret_store_backend(&item);
+                let (backend, secret_ref, service_account) =
+                    Self::extract_secret_store_backend(&item);
 
                 // Extract status
                 let (status, message, last_sync) = Self::extract_secret_store_status(&item);
@@ -980,21 +1057,28 @@ impl DashboardData {
         stores
     }
 
-    fn extract_secret_store_backend(obj: &kube::api::DynamicObject) -> (String, Option<String>, Option<String>) {
+    fn extract_secret_store_backend(
+        obj: &kube::api::DynamicObject,
+    ) -> (String, Option<String>, Option<String>) {
         let spec = obj.data.get("spec");
         let provider = spec.and_then(|s| s.get("provider"));
 
         if let Some(provider) = provider {
             // Check each provider type
             if let Some(aws) = provider.get("aws") {
-                let service = aws.get("service").and_then(|s| s.as_str()).unwrap_or("SecretsManager");
-                let secret_ref = aws.get("auth")
+                let service = aws
+                    .get("service")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("SecretsManager");
+                let secret_ref = aws
+                    .get("auth")
                     .and_then(|a| a.get("secretRef"))
                     .and_then(|s| s.get("accessKeyIDSecretRef"))
                     .and_then(|s| s.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|s| s.to_string());
-                let sa = aws.get("auth")
+                let sa = aws
+                    .get("auth")
                     .and_then(|a| a.get("jwt"))
                     .and_then(|j| j.get("serviceAccountRef"))
                     .and_then(|s| s.get("name"))
@@ -1004,13 +1088,15 @@ impl DashboardData {
             }
 
             if let Some(gcp) = provider.get("gcpsm") {
-                let secret_ref = gcp.get("auth")
+                let secret_ref = gcp
+                    .get("auth")
                     .and_then(|a| a.get("secretRef"))
                     .and_then(|s| s.get("secretAccessKeySecretRef"))
                     .and_then(|s| s.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|s| s.to_string());
-                let sa = gcp.get("auth")
+                let sa = gcp
+                    .get("auth")
                     .and_then(|a| a.get("workloadIdentity"))
                     .and_then(|w| w.get("serviceAccountRef"))
                     .and_then(|s| s.get("name"))
@@ -1020,13 +1106,18 @@ impl DashboardData {
             }
 
             if let Some(azure) = provider.get("azurekv") {
-                let vault_url = azure.get("vaultUrl").and_then(|v| v.as_str()).unwrap_or("Unknown");
-                let secret_ref = azure.get("authSecretRef")
+                let vault_url = azure
+                    .get("vaultUrl")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown");
+                let secret_ref = azure
+                    .get("authSecretRef")
                     .and_then(|s| s.get("clientSecret"))
                     .and_then(|s| s.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|s| s.to_string());
-                let sa = azure.get("serviceAccountRef")
+                let sa = azure
+                    .get("serviceAccountRef")
                     .and_then(|s| s.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|s| s.to_string());
@@ -1034,13 +1125,18 @@ impl DashboardData {
             }
 
             if let Some(vault) = provider.get("vault") {
-                let server = vault.get("server").and_then(|s| s.as_str()).unwrap_or("Unknown");
-                let secret_ref = vault.get("auth")
+                let server = vault
+                    .get("server")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("Unknown");
+                let secret_ref = vault
+                    .get("auth")
                     .and_then(|a| a.get("tokenSecretRef"))
                     .and_then(|s| s.get("name"))
                     .and_then(|n| n.as_str())
                     .map(|s| s.to_string());
-                let sa = vault.get("auth")
+                let sa = vault
+                    .get("auth")
                     .and_then(|a| a.get("kubernetes"))
                     .and_then(|k| k.get("serviceAccountRef"))
                     .and_then(|s| s.get("name"))
@@ -1057,7 +1153,9 @@ impl DashboardData {
         ("Unknown".to_string(), None, None)
     }
 
-    fn extract_secret_store_status(obj: &kube::api::DynamicObject) -> (ProviderStatus, Option<String>, Option<String>) {
+    fn extract_secret_store_status(
+        obj: &kube::api::DynamicObject,
+    ) -> (ProviderStatus, Option<String>, Option<String>) {
         let status = obj.data.get("status");
 
         if let Some(status) = status {
@@ -1066,12 +1164,21 @@ impl DashboardData {
             if let Some(conditions) = conditions {
                 for cond in conditions {
                     let cond_type = cond.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                    let cond_status = cond.get("status").and_then(|s| s.as_str()).unwrap_or("False");
+                    let cond_status = cond
+                        .get("status")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("False");
 
                     if cond_type == "Ready" {
                         let is_ready = cond_status == "True";
-                        let message = cond.get("message").and_then(|m| m.as_str()).map(|s| s.to_string());
-                        let last_sync = cond.get("lastTransitionTime").and_then(|t| t.as_str()).map(|s| s.to_string());
+                        let message = cond
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .map(|s| s.to_string());
+                        let last_sync = cond
+                            .get("lastTransitionTime")
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.to_string());
 
                         let provider_status = if is_ready {
                             ProviderStatus::Healthy
@@ -1132,7 +1239,8 @@ impl DashboardData {
 
                 // Check for Azure Workload Identity
                 if let Some(client_id) = annotations.get("azure.workload.identity/client-id") {
-                    let tenant_id = annotations.get("azure.workload.identity/tenant-id")
+                    let tenant_id = annotations
+                        .get("azure.workload.identity/tenant-id")
                         .map(|s| s.as_str())
                         .unwrap_or("unknown");
                     accounts.push(AuthProviderInfo {
@@ -1197,12 +1305,19 @@ impl DashboardData {
                     .and_then(|s| s.cost_summary.as_ref())
                     .is_some()
             })
-            .max_by_key(|r| r.status.as_ref().and_then(|s| s.last_collection_time.clone()))?;
+            .max_by_key(|r| {
+                r.status
+                    .as_ref()
+                    .and_then(|s| s.last_collection_time.clone())
+            })?;
 
         let status = cr.status?;
         let cost = status.cost_summary?;
         let hourly = cost.total_per_hour.parse::<f64>().unwrap_or(0.0);
-        let monthly = cost.projected_monthly.parse::<f64>().unwrap_or(hourly * 730.0);
+        let monthly = cost
+            .projected_monthly
+            .parse::<f64>()
+            .unwrap_or(hourly * 730.0);
 
         // Aggregate per-namespace from podStats.
         let mut by_ns: HashMap<String, f64> = HashMap::new();
@@ -1256,10 +1371,7 @@ impl DashboardData {
     /// Fallback estimate when no ResourceStats data is available.
     /// Spreads node-rate evenly across namespaces — a coarse stand-in until
     /// the operator wires per-namespace cost.
-    fn finops_placeholder(
-        nodes: &[NodeInfo],
-        namespaces: &[NamespaceInfo],
-    ) -> FinOpsOverview {
+    fn finops_placeholder(nodes: &[NodeInfo], namespaces: &[NamespaceInfo]) -> FinOpsOverview {
         let node_count = nodes.len();
         let estimated_hourly = node_count as f64 * 0.10; // $0.10/node/hour placeholder
 
@@ -1470,7 +1582,9 @@ pub fn parse_quantity(s: &str) -> Option<f64> {
     if let Ok(n) = s.parse::<f64>() {
         return Some(n);
     }
-    let split = s.find(|c: char| !c.is_ascii_digit() && c != '.').unwrap_or(s.len());
+    let split = s
+        .find(|c: char| !c.is_ascii_digit() && c != '.')
+        .unwrap_or(s.len());
     let (num, suffix) = s.split_at(split);
     let n: f64 = num.parse().ok()?;
     let mult = match suffix {
@@ -1542,8 +1656,14 @@ fn extract_policy_findings(report: &kube::api::DynamicObject) -> Vec<SecurityIss
     let report_ns = report.metadata.namespace.as_deref().unwrap_or("");
     let scope = report.data.get("scope");
     // scope is the target the report is about: kind/name/namespace
-    let target_kind = scope.and_then(|s| s.get("kind")).and_then(|v| v.as_str()).unwrap_or("?");
-    let target_name = scope.and_then(|s| s.get("name")).and_then(|v| v.as_str()).unwrap_or("?");
+    let target_kind = scope
+        .and_then(|s| s.get("kind"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    let target_name = scope
+        .and_then(|s| s.get("name"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
     let target_ns = scope
         .and_then(|s| s.get("namespace"))
         .and_then(|v| v.as_str())
@@ -1673,9 +1793,14 @@ impl CurrentResources {
         r: Option<&k8s_openapi::api::core::v1::ResourceRequirements>,
     ) -> Self {
         let Some(r) = r else { return Self::default() };
-        let get = |map: Option<&std::collections::BTreeMap<String, k8s_openapi::apimachinery::pkg::api::resource::Quantity>>, key: &str| {
-            map.and_then(|m| m.get(key)).map(|q| q.0.clone())
-        };
+        let get =
+            |map: Option<
+                &std::collections::BTreeMap<
+                    String,
+                    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+                >,
+            >,
+             key: &str| { map.and_then(|m| m.get(key)).map(|q| q.0.clone()) };
         Self {
             cpu_request: get(r.requests.as_ref(), "cpu"),
             cpu_limit: get(r.limits.as_ref(), "cpu"),

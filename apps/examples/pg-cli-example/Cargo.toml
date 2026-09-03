@@ -1,0 +1,16 @@
+[package]
+name = "pg-cli-example"
+version = "0.1.0"
+edition = "2024"
+description = "Example Rust app that drives the pg-cli binary to generate Postgres ConfigMaps"
+publish = false
+
+[[bin]]
+name = "pg-cli-example"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.6", features = ["derive", "env"] }
+color-eyre = "0.6.5"
+eyre = "0.6.14"
+serde_yaml = "0.9"

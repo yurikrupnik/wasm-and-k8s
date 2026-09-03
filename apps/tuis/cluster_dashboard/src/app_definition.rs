@@ -277,10 +277,18 @@ pub struct Probe {
     pub failure_threshold: u32,
 }
 
-fn default_initial_delay() -> u32 { 5 }
-fn default_period() -> u32 { 10 }
-fn default_timeout() -> u32 { 3 }
-fn default_failure_threshold() -> u32 { 3 }
+fn default_initial_delay() -> u32 {
+    5
+}
+fn default_period() -> u32 {
+    10
+}
+fn default_timeout() -> u32 {
+    3
+}
+fn default_failure_threshold() -> u32 {
+    3
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -291,7 +299,9 @@ pub struct HttpProbe {
     pub scheme: String,
 }
 
-fn default_http() -> String { "HTTP".to_string() }
+fn default_http() -> String {
+    "HTTP".to_string()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TcpProbe {
@@ -323,9 +333,15 @@ pub struct ContainerResources {
     pub gpu: Option<GpuRequest>,
 }
 
-fn default_cpu_request() -> String { "100m".to_string() }
-fn default_memory_request() -> String { "128Mi".to_string() }
-fn default_memory_limit() -> String { "256Mi".to_string() }
+fn default_cpu_request() -> String {
+    "100m".to_string()
+}
+fn default_memory_request() -> String {
+    "128Mi".to_string()
+}
+fn default_memory_limit() -> String {
+    "256Mi".to_string()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -337,7 +353,9 @@ pub struct GpuRequest {
     pub count: u32,
 }
 
-fn default_gpu_type() -> String { "nvidia.com/gpu".to_string() }
+fn default_gpu_type() -> String {
+    "nvidia.com/gpu".to_string()
+}
 
 // ============ Resource Spec ============
 
@@ -377,7 +395,9 @@ pub struct ResourceSpec {
     pub topology_spread: Vec<TopologySpreadSpec>,
 }
 
-fn default_replicas() -> u32 { 1 }
+fn default_replicas() -> u32 {
+    1
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -393,7 +413,9 @@ pub struct AutoscalingSpec {
     pub keda_triggers: Vec<KedaTrigger>,
 }
 
-fn default_cpu_target() -> u32 { 80 }
+fn default_cpu_target() -> u32 {
+    80
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -455,7 +477,9 @@ pub struct IngressSpec {
     pub annotations: BTreeMap<String, String>,
 }
 
-fn default_ingress_class() -> String { "nginx".to_string() }
+fn default_ingress_class() -> String {
+    "nginx".to_string()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -466,15 +490,23 @@ pub struct IngressPath {
     pub service_port: u16,
 }
 
-fn default_path_type() -> String { "Prefix".to_string() }
+fn default_path_type() -> String {
+    "Prefix".to_string()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum VolumeSpec {
     /// Empty dir
-    EmptyDir { name: String, medium: Option<String> },
+    EmptyDir {
+        name: String,
+        medium: Option<String>,
+    },
     /// ConfigMap
-    ConfigMap { name: String, config_map_name: String },
+    ConfigMap {
+        name: String,
+        config_map_name: String,
+    },
     /// Secret
     Secret { name: String, secret_name: String },
     /// PVC
@@ -523,7 +555,9 @@ pub struct TopologySpreadSpec {
     pub when_unsatisfiable: String,
 }
 
-fn default_when_unsatisfiable() -> String { "ScheduleAnyway".to_string() }
+fn default_when_unsatisfiable() -> String {
+    "ScheduleAnyway".to_string()
+}
 
 // ============ Port Forwards ============
 
@@ -693,8 +727,12 @@ pub struct SecurityContextSpec {
     pub seccomp_profile: String,
 }
 
-fn default_drop_all() -> Vec<String> { vec!["ALL".to_string()] }
-fn default_seccomp() -> String { "RuntimeDefault".to_string() }
+fn default_drop_all() -> Vec<String> {
+    vec!["ALL".to_string()]
+}
+fn default_seccomp() -> String {
+    "RuntimeDefault".to_string()
+}
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -823,9 +861,15 @@ pub struct MetricsSpec {
     pub labels: BTreeMap<String, String>,
 }
 
-fn default_metrics_path() -> String { "/metrics".to_string() }
-fn default_metrics_port() -> u16 { 9090 }
-fn default_scrape_interval() -> String { "30s".to_string() }
+fn default_metrics_path() -> String {
+    "/metrics".to_string()
+}
+fn default_metrics_port() -> u16 {
+    9090
+}
+fn default_scrape_interval() -> String {
+    "30s".to_string()
+}
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -880,7 +924,9 @@ pub struct TracingSpec {
     pub service_name: Option<String>,
 }
 
-fn default_sample_rate() -> f64 { 0.1 }
+fn default_sample_rate() -> f64 {
+    0.1
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -948,7 +994,9 @@ pub struct RepositorySpec {
     pub sast: SastSpec,
 }
 
-fn default_branch() -> String { "main".to_string() }
+fn default_branch() -> String {
+    "main".to_string()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1085,7 +1133,9 @@ pub struct EnvironmentOverride {
 
 // ============ Helper Functions ============
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 impl AppDefinition {
     /// Load from YAML file
@@ -1100,6 +1150,9 @@ impl AppDefinition {
 
     /// Get effective namespace
     pub fn namespace(&self) -> &str {
-        self.metadata.namespace.as_deref().unwrap_or(&self.metadata.name)
+        self.metadata
+            .namespace
+            .as_deref()
+            .unwrap_or(&self.metadata.name)
     }
 }

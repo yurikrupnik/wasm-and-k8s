@@ -7,22 +7,19 @@
 //! - FinOps cost analysis
 
 pub mod app_definition;
-pub mod views;
 pub mod data;
+pub mod kube_client;
 pub mod ui;
+pub mod views;
 
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers,
-        MouseEventKind,
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::sync::Arc;
 use std::time::Duration;
@@ -105,7 +102,10 @@ impl Dashboard {
         result
     }
 
-    async fn main_loop(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> anyhow::Result<()> {
+    async fn main_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
         loop {
             // Draw UI
             let data = self.data.read().await;
@@ -120,122 +120,124 @@ impl Dashboard {
             // Handle events
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
-                Event::Mouse(m) if !self.is_searching => match m.kind {
-                    MouseEventKind::ScrollDown => {
-                        self.selected_index = self.selected_index.saturating_add(3);
-                    }
-                    MouseEventKind::ScrollUp => {
-                        self.selected_index = self.selected_index.saturating_sub(3);
+                    Event::Mouse(m) if !self.is_searching => match m.kind {
+                        MouseEventKind::ScrollDown => {
+                            self.selected_index = self.selected_index.saturating_add(3);
+                        }
+                        MouseEventKind::ScrollUp => {
+                            self.selected_index = self.selected_index.saturating_sub(3);
+                        }
+                        _ => {}
+                    },
+                    Event::Key(key) => {
+                        if self.is_searching {
+                            match key.code {
+                                KeyCode::Esc => {
+                                    self.is_searching = false;
+                                    self.search_query.clear();
+                                }
+                                KeyCode::Enter => {
+                                    self.is_searching = false;
+                                }
+                                KeyCode::Backspace => {
+                                    self.search_query.pop();
+                                }
+                                KeyCode::Char(c) => {
+                                    self.search_query.push(c);
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            match key.code {
+                                KeyCode::Char('q') => {
+                                    self.should_quit = true;
+                                }
+                                KeyCode::Char('c')
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                                {
+                                    self.should_quit = true;
+                                }
+                                KeyCode::Char('/') => {
+                                    self.is_searching = true;
+                                }
+                                KeyCode::Char('?') => {
+                                    self.current_view = View::Help;
+                                }
+                                // Navigation
+                                KeyCode::Char('1') => {
+                                    self.current_view = View::Overview;
+                                    self.selected_index = 0;
+                                }
+                                KeyCode::Char('2') => {
+                                    self.current_view = View::Nodes;
+                                    self.selected_index = 0;
+                                }
+                                KeyCode::Char('3') => {
+                                    self.current_view = View::Security;
+                                    self.selected_index = 0;
+                                }
+                                KeyCode::Char('4') => {
+                                    self.current_view = View::FinOps;
+                                    self.selected_index = 0;
+                                }
+                                KeyCode::Char('5') => {
+                                    self.current_view = View::Providers;
+                                    self.selected_index = 0;
+                                }
+                                KeyCode::Char('6') => {
+                                    self.current_view = View::Rightsizing;
+                                    self.selected_index = 0;
+                                }
+                                // List navigation
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    if self.selected_index > 0 {
+                                        self.selected_index -= 1;
+                                    }
+                                }
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    self.selected_index += 1;
+                                }
+                                KeyCode::PageUp => {
+                                    self.selected_index = self.selected_index.saturating_sub(10);
+                                }
+                                KeyCode::PageDown => {
+                                    self.selected_index += 10;
+                                }
+                                KeyCode::Home => {
+                                    self.selected_index = 0;
+                                }
+                                // Actions
+                                KeyCode::Char('r') => {
+                                    self.status_message = Some("Refreshing...".to_string());
+                                    if let Ok(new_data) = DashboardData::load().await {
+                                        let mut guard = self.data.write().await;
+                                        *guard = new_data;
+                                        self.status_message = Some("Refreshed!".to_string());
+                                    }
+                                }
+                                KeyCode::Enter => {
+                                    // Action on selected item
+                                    self.handle_enter().await;
+                                }
+                                KeyCode::Esc => {
+                                    // Esc only escapes a detail view back to its
+                                    // parent list. From a top-level view it does
+                                    // nothing — pressing 1 is the way home.
+                                    match self.current_view {
+                                        View::VulnerabilityDetail => {
+                                            self.current_view = View::Security;
+                                        }
+                                        View::ProviderDetail => {
+                                            self.current_view = View::Providers;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     _ => {}
-                },
-                Event::Key(key) => {
-                    if self.is_searching {
-                        match key.code {
-                            KeyCode::Esc => {
-                                self.is_searching = false;
-                                self.search_query.clear();
-                            }
-                            KeyCode::Enter => {
-                                self.is_searching = false;
-                            }
-                            KeyCode::Backspace => {
-                                self.search_query.pop();
-                            }
-                            KeyCode::Char(c) => {
-                                self.search_query.push(c);
-                            }
-                            _ => {}
-                        }
-                    } else {
-                        match key.code {
-                            KeyCode::Char('q') => {
-                                self.should_quit = true;
-                            }
-                            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.should_quit = true;
-                            }
-                            KeyCode::Char('/') => {
-                                self.is_searching = true;
-                            }
-                            KeyCode::Char('?') => {
-                                self.current_view = View::Help;
-                            }
-                            // Navigation
-                            KeyCode::Char('1') => {
-                                self.current_view = View::Overview;
-                                self.selected_index = 0;
-                            }
-                            KeyCode::Char('2') => {
-                                self.current_view = View::Nodes;
-                                self.selected_index = 0;
-                            }
-                            KeyCode::Char('3') => {
-                                self.current_view = View::Security;
-                                self.selected_index = 0;
-                            }
-                            KeyCode::Char('4') => {
-                                self.current_view = View::FinOps;
-                                self.selected_index = 0;
-                            }
-                            KeyCode::Char('5') => {
-                                self.current_view = View::Providers;
-                                self.selected_index = 0;
-                            }
-                            KeyCode::Char('6') => {
-                                self.current_view = View::Rightsizing;
-                                self.selected_index = 0;
-                            }
-                            // List navigation
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                if self.selected_index > 0 {
-                                    self.selected_index -= 1;
-                                }
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                self.selected_index += 1;
-                            }
-                            KeyCode::PageUp => {
-                                self.selected_index = self.selected_index.saturating_sub(10);
-                            }
-                            KeyCode::PageDown => {
-                                self.selected_index += 10;
-                            }
-                            KeyCode::Home => {
-                                self.selected_index = 0;
-                            }
-                            // Actions
-                            KeyCode::Char('r') => {
-                                self.status_message = Some("Refreshing...".to_string());
-                                if let Ok(new_data) = DashboardData::load().await {
-                                    let mut guard = self.data.write().await;
-                                    *guard = new_data;
-                                    self.status_message = Some("Refreshed!".to_string());
-                                }
-                            }
-                            KeyCode::Enter => {
-                                // Action on selected item
-                                self.handle_enter().await;
-                            }
-                            KeyCode::Esc => {
-                                // Esc only escapes a detail view back to its
-                                // parent list. From a top-level view it does
-                                // nothing — pressing 1 is the way home.
-                                match self.current_view {
-                                    View::VulnerabilityDetail => {
-                                        self.current_view = View::Security;
-                                    }
-                                    View::ProviderDetail => {
-                                        self.current_view = View::Providers;
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {}
                 }
             }
 
@@ -256,7 +258,11 @@ impl Dashboard {
             View::Rightsizing => data.rightsizing.len(),
             _ => return None,
         };
-        if len == 0 { None } else { Some(len - 1) }
+        if len == 0 {
+            None
+        } else {
+            Some(len - 1)
+        }
     }
 
     async fn handle_enter(&mut self) {
@@ -277,4 +283,3 @@ impl Dashboard {
         }
     }
 }
-
