@@ -7,7 +7,7 @@
   "dependencies": {},
   "devDependencies": {
     "@monodon/rust": "^2.3.0",
-    "@nx/workspace": "22.7.5",
-    "nx": "22.7.5"
+    "@nx/workspace": "22.7.12",
+    "nx": "22.7.12"
   }
 }
